@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>A Little Note For You</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Cormorant Garamond, Caveat (handwritten), and Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Plus+Jakarta+Sans:wght@400;500&display=swap" rel="stylesheet">
+  <!-- Tone.js for gentle, soft chime sound effects on interaction -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+  <style>
+    :root {
+      --bg-gradient-start: #fdf6f6;
+      --bg-gradient-end: #f5e1e4;
+      --envelope-back: #d99b9b;
+      --envelope-front-left: #ebb8b8;
+      --envelope-front-right: #e5adad;
+      --envelope-front-bottom: #dfa0a0;
+      --envelope-flap: #e8b0b0;
+      --wax-burgundy: #8a2335;
+      --wax-highlight: #a83247;
+      --paper-cream: #fffdf9;
+      --ink-color: #3d2428;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      overflow-x: hidden;
+      background: radial-gradient(circle at 50% 35%, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color: var(--ink-color);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+    }
+
+    /* Subtle paper grain overlay */
+    .bg-grain {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.35;
+      background-image: radial-gradient(#b87d86 0.6px, transparent 0.6px);
+      background-size: 24px 24px;
+      z-index: 0;
+    }
+
+    /* Floating ambient hearts & sparkles canvas */
+    #ambient-canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* Main Interactive Stage */
+    .stage {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      max-width: 480px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Envelope Wrapper with 3D Perspective */
+    .envelope-wrapper {
+      position: relative;
+      width: 100%;
+      max-width: 340px;
+      aspect-ratio: 1.52 / 1;
+      perspective: 1200px;
+      cursor: pointer;
+      transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1), filter 0.4s ease;
+      filter: drop-shadow(0 22px 32px rgba(138, 35, 53, 0.16));
+    }
+
+    .envelope-wrapper:not(.is-open):hover {
+      transform: translateY(-6px) scale(1.015);
+      filter: drop-shadow(0 28px 38px rgba(138, 35, 53, 0.22));
+    }
+
+    .envelope-wrapper.is-open {
+      cursor: default;
+      transform: translateY(85px);
+    }
+
+    @media (max-width: 400px) {
+      .envelope-wrapper.is-open {
+        transform: translateY(75px);
+      }
+    }
+
+    /* Envelope Base (Back Interior) */
+    .envelope {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background: var(--envelope-back);
+      border-radius: 12px;
+      transform-style: preserve-3d;
+    }
+
+    /* Subtle inner lining pattern */
+    .envelope::before {
+      content: '';
+      position: absolute;
+      inset: 6px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #c98686 0%, #b56f6f 100%);
+      box-shadow: inset 0 4px 12px rgba(61, 36, 40, 0.18);
+    }
+
+    /* The Letter Card inside the Envelope */
+    .letter-card {
+      position: absolute;
+      left: 6%;
+      right: 6%;
+      bottom: 8%;
+      height: 86%;
+      background: var(--paper-cream);
+      border-radius: 10px;
+      padding: 1.5rem 1.4rem;
+      box-shadow: 0 4px 16px rgba(61, 36, 40, 0.08);
+      border: 1px solid rgba(217, 155, 155, 0.45);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      z-index: 2;
+      transform: translateY(0) scale(0.96);
+      opacity: 0.92;
+      transition:
+        transform 0.9s cubic-bezier(0.34, 1.45, 0.64, 1) 0.35s,
+        height 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.45s,
+        box-shadow 0.8s ease 0.45s,
+        opacity 0.4s ease 0.3s;
+      overflow: hidden;
+    }
+
+    /* Decorative subtle inner border on the letter */
+    .letter-card::after {
+      content: '';
+      position: absolute;
+      inset: 8px;
+      border: 1px solid rgba(138, 35, 53, 0.12);
+      border-radius: 6px;
+      pointer-events: none;
+    }
+
+    /* Letter Expanded State */
+    .envelope-wrapper.is-open .letter-card {
+      z-index: 15;
+      transform: translateY(-145px) scale(1.06);
+      height: 295px;
+      opacity: 1;
+      box-shadow: 0 24px 48px rgba(84, 29, 39, 0.22), 0 4px 12px rgba(138, 35, 53, 0.08);
+    }
+
+    @media (max-width: 400px) {
+      .envelope-wrapper.is-open .letter-card {
+        transform: translateY(-130px) scale(1.04);
+        height: 280px;
+        padding: 1.25rem 1.15rem;
+      }
+    }
+
+    /* Letter Typography */
+    .letter-header {
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-size: 1.05rem;
+      color: #9e5a65;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.6s ease 0.85s, transform 0.6s ease 0.85s;
+    }
+
+    .letter-body {
+      font-family: 'Cormorant Garamond', serif;
+      font-weight: 600;
+      font-size: 1.45rem;
+      line-height: 1.45;
+      color: var(--ink-color);
+      text-align: center;
+      margin: auto 0;
+      padding: 0.25rem 0.2rem;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.75s ease 1.05s, transform 0.75s ease 1.05s;
+    }
+
+    @media (max-width: 400px) {
+      .letter-body {
+        font-size: 1.3rem;
+      }
+    }
+
+    .letter-footer {
+      font-family: 'Caveat', cursive;
+      font-size: 1.35rem;
+      color: #8a2335;
+      text-align: right;
+      padding-right: 0.4rem;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.6s ease 1.3s, transform 0.6s ease 1.3s;
+    }
+
+    .envelope-wrapper.is-open .letter-header,
+    .envelope-wrapper.is-open .letter-body,
+    .envelope-wrapper.is-open .letter-footer {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Envelope Front Pocket (Left, Right, Bottom Triangles) */
+    .pocket {
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      overflow: hidden;
+      z-index: 4;
+      pointer-events: none;
+    }
+
+    .pocket-left {
+      position: absolute;
+      inset: 0;
+      background: var(--envelope-front-left);
+      clip-path: polygon(0 0, 54% 52%, 0 100%);
+    }
+
+    .pocket-right {
+      position: absolute;
+      inset: 0;
+      background: var(--envelope-front-right);
+      clip-path: polygon(100% 0, 46% 52%, 100% 100%);
+    }
+
+    .pocket-bottom {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, #e5a6a6 0%, var(--envelope-front-bottom) 100%);
+      clip-path: polygon(0 100%, 50% 46%, 100% 100%);
+      filter: drop-shadow(0 -3px 6px rgba(61, 36, 40, 0.08));
+    }
+
+    /* Top Flap (Rotates open in 3D) */
+    .flap {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 58%;
+      background: linear-gradient(180deg, #efbdbd 0%, var(--envelope-flap) 100%);
+      clip-path: polygon(0 0, 100% 0, 50% 100%);
+      border-top-left-radius: 12px;
+      border-top-right-radius: 12px;
+      transform-origin: top center;
+      transform: rotateX(0deg);
+      z-index: 6;
+      transition: transform 0.65s cubic-bezier(0.4, 0, 0.2, 1), z-index 0.1s linear 0.3s;
+      filter: drop-shadow(0 4px 8px rgba(61, 36, 40, 0.12));
+    }
+
+    .envelope-wrapper.is-open .flap {
+      transform: rotateX(180deg);
+      z-index: 1;
+    }
+
+    /* Burgundy Wax Seal */
+    .wax-seal {
+      position: absolute;
+      top: 52%;
+      left: 50%;
+      width: 58px;
+      height: 58px;
+      transform: translate(-50%, -50%) scale(1);
+      z-index: 8;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, var(--wax-highlight) 0%, var(--wax-burgundy) 70%, #661624 100%);
+      box-shadow:
+        0 6px 14px rgba(84, 18, 30, 0.35),
+        inset 0 2px 4px rgba(255, 195, 205, 0.35),
+        inset 0 -3px 6px rgba(45, 8, 15, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition:
+        transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+        opacity 0.4s ease 0.15s;
+    }
+
+    /* Inner stamped ring on the wax seal */
+    .wax-seal::before {
+      content: '';
+      position: absolute;
+      inset: 6px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(255, 214, 221, 0.32);
+      box-shadow: inset 0 1px 3px rgba(45, 8, 15, 0.45);
+    }
+
+    .envelope-wrapper:not(.is-open):hover .wax-seal {
+      transform: translate(-50%, -50%) scale(1.08);
+    }
+
+    /* Wax seal lifts & fades smoothly when opened */
+    .envelope-wrapper.is-open .wax-seal {
+      transform: translate(-50%, -85%) scale(1.25) rotate(12deg);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* Prompt / Hint Text Below Envelope */
+    .prompt-text {
+      margin-top: 1.75rem;
+      font-size: 0.9rem;
+      letter-spacing: 0.04em;
+      color: #8c525b;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      transition: opacity 0.4s ease, transform 0.4s ease;
+      animation: gentlePulse 2.4s infinite ease-in-out;
+    }
+
+    .prompt-text.hidden-prompt {
+      opacity: 0;
+      transform: translateY(6px);
+      pointer-events: none;
+      animation: none;
+    }
+
+    @keyframes gentlePulse {
+      0%, 100% { opacity: 0.65; transform: translateY(0); }
+      50% { opacity: 1; transform: translateY(-2px); }
+    }
+
+    /* Replay / Close Button */
+    .controls-bar {
+      margin-top: 7.25rem;
+      opacity: 0;
+      transform: translateY(12px);
+      pointer-events: none;
+      transition: opacity 0.6s ease 1.3s, transform 0.6s ease 1.3s;
+    }
+
+    .controls-bar.visible {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    .close-btn {
+      background: rgba(255, 253, 249, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(138, 35, 53, 0.22);
+      color: #7d2534;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 0.875rem;
+      font-weight: 500;
+      padding: 0.65rem 1.35rem;
+      border-radius: 999px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      box-shadow: 0 8px 20px rgba(138, 35, 53, 0.1);
+      transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .close-btn:hover {
+      background: #8a2335;
+      color: #fffdf9;
+      transform: translateY(-2px);
+      box-shadow: 0 12px 24px rgba(138, 35, 53, 0.22);
+    }
+
+    .close-btn:active {
+      transform: scale(0.97);
+    }
+  </style>
+</head>
+<body>
+  <!-- Soft decorative background dots -->
+  <div class="bg-grain"></div>
+
+  <!-- Ambient floating hearts & sparkles -->
+  <canvas id="ambient-canvas"></canvas>
+
+  <!-- Main Stage -->
+  <main class="stage">
+    <!-- Interactive Envelope -->
+    <div
+      id="envelopeWrapper"
+      class="envelope-wrapper"
+      role="button"
+      tabindex="0"
+      aria-label="Open sealed letter"
+    >
+      <div class="envelope">
+        <!-- Letter Card Inside -->
+        <article class="letter-card" aria-live="polite">
+          <div class="letter-header">Just wanted to tell you...</div>
+
+          <p class="letter-body">
+            “I know study first paka rn, and wala koy chance nimo... but can I wait for you?”
+          </p>
+
+          <div class="letter-footer">No rush, always cheering for you ♡</div>
+        </article>
+
+        <!-- Front Envelope Folds -->
+        <div class="pocket">
+          <div class="pocket-left"></div>
+          <div class="pocket-right"></div>
+          <div class="pocket-bottom"></div>
+        </div>
+
+        <!-- Top Animated Flap -->
+        <div class="flap"></div>
+
+        <!-- Burgundy Wax Seal with Heart Emblem -->
+        <div class="wax-seal" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M12 20.5C12 20.5 4 15.1 4 9.2C4 6.6 6 4.5 8.5 4.5C10.1 4.5 11.4 5.3 12 6.5C12.6 5.3 13.9 4.5 15.5 4.5C18 4.5 20 6.6 20 9.2C20 15.1 12 20.5 12 20.5Z"
+              fill="#f8d7dc"
+              fill-opacity="0.9"
+            />
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tap Hint -->
+    <p id="promptText" class="prompt-text">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+      </svg>
+      <span>Tap the wax seal to open</span>
+    </p>
+
+    <!-- Close / Replay Action -->
+    <div id="controlsBar" class="controls-bar">
+      <button id="closeBtn" type="button" class="close-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+          <path d="M3 3v5h5"></path>
+        </svg>
+        <span>Fold & Seal Again</span>
+      </button>
+    </div>
+  </main>
+
+  <script>
+    /* ==========================================================================
+       1. State & DOM References
+       ========================================================================== */
+    const envelopeWrapper = document.getElementById('envelopeWrapper');
+    const promptText = document.getElementById('promptText');
+    const controlsBar = document.getElementById('controlsBar');
+    const closeBtn = document.getElementById('closeBtn');
+
+    let isOpen = false;
+    let audioReady = false;
+    let synth = null;
+
+    /* ==========================================================================
+       2. Gentle Sound Synthesis (Tone.js)
+       ========================================================================== */
+    function initAudio() {
+      if (audioReady || typeof Tone === 'undefined') return;
+      try {
+        synth = new Tone.PolySynth(Tone.Synth, {
+          oscillator: { type: 'sine' },
+          envelope: {
+            attack: 0.04,
+            decay: 0.4,
+            sustain: 0.15,
+            release: 1.6
+          },
+          volume: -14
+        }).toDestination();
+        audioReady = true;
+      } catch (err) {
+        // Gracefully ignore if browser blocks audio context
+      }
+    }
+
+    function playOpenChime() {
+      initAudio();
+      if (!synth) return;
+      try {
+        if (Tone.context.state !== 'running') {
+          Tone.start();
+        }
+        const now = Tone.now();
+        // Warm, soft major-9th arpeggio
+        synth.triggerAttackRelease('F4', '4n', now);
+        synth.triggerAttackRelease('A4', '4n', now + 0.11);
+        synth.triggerAttackRelease('C5', '4n', now + 0.22);
+        synth.triggerAttackRelease('E5', '2n', now + 0.34);
+      } catch (e) {}
+    }
+
+    function playCloseChime() {
+      if (!synth) return;
+      try {
+        const now = Tone.now();
+        synth.triggerAttackRelease('C5', '8n', now);
+        synth.triggerAttackRelease('F4', '4n', now + 0.1);
+      } catch (e) {}
+    }
+
+    /* ==========================================================================
+       3. Envelope Open / Close Interaction
+       ========================================================================== */
+    function openEnvelope() {
+      if (isOpen) return;
+      isOpen = true;
+
+      envelopeWrapper.classList.add('is-open');
+      envelopeWrapper.setAttribute('aria-expanded', 'true');
+      promptText.classList.add('hidden-prompt');
+      controlsBar.classList.add('visible');
+
+      playOpenChime();
+      spawnHeartBurst();
+    }
+
+    function closeEnvelope(e) {
+      if (e) e.stopPropagation();
+      if (!isOpen) return;
+      isOpen = false;
+
+      envelopeWrapper.classList.remove('is-open');
+      envelopeWrapper.setAttribute('aria-expanded', 'false');
+      controlsBar.classList.remove('visible');
+      playCloseChime();
+
+      setTimeout(() => {
+        if (!isOpen) {
+          promptText.classList.remove('hidden-prompt');
+        }
+      }, 650);
+    }
+
+    envelopeWrapper.addEventListener('click', openEnvelope);
+    envelopeWrapper.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openEnvelope();
+      }
+    });
+
+    closeBtn.addEventListener('click', closeEnvelope);
+
+    /* ==========================================================================
+       4. Ambient Floating Hearts & Sparkles Canvas
+       ========================================================================== */
+    const canvas = document.getElementById('ambient-canvas');
+    const ctx = canvas.getContext('2d');
+    let width = 0;
+    let height = 0;
+    const particles = [];
+
+    function resizeCanvas() {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    class Particle {
+      constructor(isBurst = false, originX = null, originY = null) {
+        this.isBurst = isBurst;
+        this.reset(originX, originY);
+      }
+
+      reset(originX = null, originY = null) {
+        this.x = originX !== null ? originX : Math.random() * width;
+        this.y = originY !== null ? originY : (this.isBurst ? height * 0.5 : height + Math.random() * 100);
+        this.size = this.isBurst ? 5 + Math.random() * 7 : 3 + Math.random() * 6;
+        this.type = Math.random() > 0.42 ? 'heart' : 'sparkle';
+
+        if (this.isBurst) {
+          const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.8;
+          const speed = 1.6 + Math.random() * 3.2;
+          this.vx = Math.cos(angle) * speed;
+          this.vy = Math.sin(angle) * speed - 0.5;
+          this.alpha = 0.95;
+          this.decay = 0.011 + Math.random() * 0.008;
+        } else {
+          this.vx = (Math.random() - 0.5) * 0.45;
+          this.vy = -(0.28 + Math.random() * 0.55);
+          this.alpha = 0.15 + Math.random() * 0.35;
+          this.decay = 0;
+        }
+
+        this.wobble = Math.random() * Math.PI * 2;
+        this.wobbleSpeed = 0.02 + Math.random() * 0.025;
+        const palette = ['#d97b8a', '#e8a5b0', '#8a2335', '#f2c1c8', '#d49a6a'];
+        this.color = palette[Math.floor(Math.random() * palette.length)];
+      }
+
+      update() {
+        this.wobble += this.wobbleSpeed;
+        this.x += this.vx + Math.sin(this.wobble) * 0.35;
+        this.y += this.vy;
+
+        if (this.isBurst) {
+          this.vy += 0.025; // Gentle gravity arc
+          this.alpha -= this.decay;
+        } else if (this.y < -30) {
+          this.reset();
+        }
+      }
+
+      draw(context) {
+        if (this.alpha <= 0) return;
+        context.save();
+        context.translate(this.x, this.y);
+        context.globalAlpha = Math.max(0, this.alpha);
+        context.fillStyle = this.color;
+
+        if (this.type === 'heart') {
+          const s = this.size;
+          context.beginPath();
+          context.moveTo(0, s * 0.3);
+          context.bezierCurveTo(-s * 0.5, -s * 0.3, -s, s * 0.2, 0, s);
+          context.bezierCurveTo(s, s * 0.2, s * 0.5, -s * 0.3, 0, s * 0.3);
+          context.fill();
+        } else {
+          // 4-point romantic sparkle
+          const r = this.size * 0.75;
+          context.beginPath();
+          context.moveTo(0, -r);
+          context.quadraticCurveTo(0, 0, r, 0);
+          context.quadraticCurveTo(0, 0, 0, r);
+          context.quadraticCurveTo(0, 0, -r, 0);
+          context.quadraticCurveTo(0, 0, 0, -r);
+          context.fill();
+        }
+
+        context.restore();
+      }
+    }
+
+    // Initialize gentle ambient background particles
+    for (let i = 0; i < 28; i++) {
+      const p = new Particle(false);
+      p.y = Math.random() * height;
+      particles.push(p);
+    }
+
+    // Spawn celebratory hearts & sparkles when letter opens
+    function spawnHeartBurst() {
+      const rect = envelopeWrapper.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height * 0.45;
+
+      for (let i = 0; i < 26; i++) {
+        particles.push(new Particle(true, centerX, centerY));
+      }
+    }
+
+    function animateParticles() {
+      ctx.clearRect(0, 0, width, height);
+
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.update();
+        p.draw(ctx);
+
+        if (p.isBurst && p.alpha <= 0) {
+          particles.splice(i, 1);
+        }
+      }
+
+      requestAnimationFrame(animateParticles);
+    }
+
+    animateParticles();
+  </script>
+</body>
+</html>
